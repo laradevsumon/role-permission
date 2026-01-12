@@ -3,6 +3,7 @@
     "description": "A dynamic role and permission management package for Laravel.",
     "type": "library",
     "license": "MIT",
+    "version": "1.1.0",
     "keywords": [
         "laravel",
         "permissions",

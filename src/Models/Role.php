@@ -5,8 +5,8 @@ namespace Pkc\RolePermission\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Builder;
 use Pkc\RolePermission\Traits\HasPermissions;
-use App\Models\User; // Assuming User is in App\Models, dependent on main app
 
 class Role extends Model
 {
@@ -28,14 +28,36 @@ class Role extends Model
      */
     public function users(): HasMany
     {
-        return $this->hasMany(User::class);
+        $userModel = config('role-permission.user_model');
+        
+        return $this->hasMany($userModel);
     }
 
     /**
      * Scope to exclude MasterAdmin role from queries.
      */
-    public function scopeVisible($query)
+    public function scopeVisible(Builder $query): Builder
     {
-        return $query->where('slug', '!=', 'master-admin');
+        $masterAdminSlug = config('role-permission.master_admin_slug', 'master-admin');
+        
+        return $query->where('slug', '!=', $masterAdminSlug);
+    }
+
+    /**
+     * Scope to get only active roles.
+     */
+    public function scopeActive(Builder $query): Builder
+    {
+        return $query->where('status', true);
+    }
+
+    /**
+     * Check if this is the master admin role.
+     */
+    public function isMasterAdmin(): bool
+    {
+        $masterAdminSlug = config('role-permission.master_admin_slug', 'master-admin');
+        
+        return $this->slug === $masterAdminSlug;
     }
 }
