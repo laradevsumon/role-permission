@@ -1,0 +1,39 @@
+{
+    "name": "pkc/role-permission",
+    "description": "A dynamic role and permission management package for Laravel.",
+    "type": "library",
+    "license": "MIT",
+    "keywords": [
+        "laravel",
+        "permissions",
+        "roles",
+        "acl",
+        "authorization"
+    ],
+    "authors": [
+        {
+            "name": "pkc",
+            "email": "laradev.sumon@gmail.com"
+        }
+    ],
+    "require": {
+        "php": "^8.2",
+        "illuminate/support": "^11.0|^12.0",
+        "illuminate/database": "^11.0|^12.0",
+        "illuminate/auth": "^11.0|^12.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Pkc\\RolePermission\\": "src/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Pkc\\RolePermission\\Providers\\RolePermissionServiceProvider"
+            ]
+        }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}
