@@ -80,6 +80,323 @@ class Role extends BaseRole
 }
 ```
 
+## 💡 Complete Example Flow
+
+Here's a complete step-by-step example of setting up and using the package in a blog application:
+
+### Step 1: Setup and Migration
+
+```bash
+# Install the package
+composer require pkc/role-permission
+
+# Run migrations
+php artisan migrate
+```
+
+### Step 2: Configure User Model
+
+```php
+// app/Models/User.php
+namespace App\Models;
+
+use Illuminate\Foundation\Auth\User as Authenticatable;
+use Pkc\RolePermission\Traits\HasRoles;
+
+class User extends Authenticatable
+{
+    use HasRoles;
+    
+    // Your existing code...
+}
+```
+
+### Step 3: Create Roles
+
+```php
+use Pkc\RolePermission\Models\Role;
+
+// Create roles
+$admin = Role::create([
+    'name' => 'Administrator',
+    'slug' => 'admin',
+    'description' => 'Full system access',
+    'status' => true,
+]);
+
+$editor = Role::create([
+    'name' => 'Editor',
+    'slug' => 'editor',
+    'description' => 'Can create and edit posts',
+    'status' => true,
+]);
+
+$author = Role::create([
+    'name' => 'Author',
+    'slug' => 'author',
+    'description' => 'Can create posts',
+    'status' => true,
+]);
+```
+
+### Step 4: Create Permissions (Hierarchical Structure)
+
+```php
+use Pkc\RolePermission\Models\Permission;
+
+// Create Posts Module (parent permission)
+$postsModule = Permission::create([
+    'name' => 'Posts',
+    'slug' => 'posts',
+    'type' => 'module',
+    'route_name' => 'posts.index',
+    'order' => 1,
+    'status' => true,
+]);
+
+// Create action permissions (children)
+$viewPosts = Permission::create([
+    'name' => 'View Posts',
+    'slug' => 'posts.view',
+    'type' => 'action',
+    'parent_id' => $postsModule->id,
+    'route_name' => 'posts.show',
+    'order' => 1,
+    'status' => true,
+]);
+
+$createPosts = Permission::create([
+    'name' => 'Create Posts',
+    'slug' => 'posts.create',
+    'type' => 'action',
+    'parent_id' => $postsModule->id,
+    'route_name' => 'posts.create',
+    'order' => 2,
+    'status' => true,
+]);
+
+$editPosts = Permission::create([
+    'name' => 'Edit Posts',
+    'slug' => 'posts.edit',
+    'type' => 'action',
+    'parent_id' => $postsModule->id,
+    'route_name' => 'posts.edit',
+    'order' => 3,
+    'status' => true,
+]);
+
+$deletePosts = Permission::create([
+    'name' => 'Delete Posts',
+    'slug' => 'posts.delete',
+    'type' => 'action',
+    'parent_id' => $postsModule->id,
+    'route_name' => 'posts.destroy',
+    'order' => 4,
+    'status' => true,
+]);
+```
+
+### Step 5: Assign Permissions to Roles
+
+```php
+// Admin gets all permissions
+$admin->syncPermissions([
+    $postsModule->id,
+    $viewPosts->id,
+    $createPosts->id,
+    $editPosts->id,
+    $deletePosts->id,
+]);
+
+// Editor can view, create, and edit (but not delete)
+$editor->syncPermissions([
+    $viewPosts->id,
+    $createPosts->id,
+    $editPosts->id,
+]);
+
+// Author can only view and create
+$author->syncPermissions([
+    $viewPosts->id,
+    $createPosts->id,
+]);
+```
+
+### Step 6: Assign Roles to Users
+
+```php
+use App\Models\User;
+
+// Assign admin role to a user
+$user1 = User::find(1);
+$user1->update(['role_id' => $admin->id]);
+
+// Assign editor role
+$user2 = User::find(2);
+$user2->update(['role_id' => $editor->id]);
+
+// Assign author role
+$user3 = User::find(3);
+$user3->update(['role_id' => $author->id]);
+```
+
+### Step 7: Use in Controller
+
+```php
+// app/Http/Controllers/PostController.php
+namespace App\Http\Controllers;
+
+use App\Http\Controllers\Controller;
+use Illuminate\Http\Request;
+
+class PostController extends Controller
+{
+    public function index()
+    {
+        // Check permission
+        if (!auth()->user()->hasPermission('posts.view')) {
+            abort(403, 'You do not have permission to view posts.');
+        }
+        
+        $posts = Post::all();
+        return view('posts.index', compact('posts'));
+    }
+    
+    public function create()
+    {
+        if (!auth()->user()->hasPermission('posts.create')) {
+            abort(403);
+        }
+        
+        return view('posts.create');
+    }
+    
+    public function store(Request $request)
+    {
+        if (!auth()->user()->canAccessRoute('posts.create')) {
+            abort(403);
+        }
+        
+        // Create post logic...
+    }
+    
+    public function edit($id)
+    {
+        if (!auth()->user()->hasPermission('posts.edit')) {
+            abort(403);
+        }
+        
+        $post = Post::findOrFail($id);
+        return view('posts.edit', compact('post'));
+    }
+    
+    public function destroy($id)
+    {
+        if (!auth()->user()->hasPermission('posts.delete')) {
+            abort(403);
+        }
+        
+        // Delete post logic...
+    }
+}
+```
+
+### Step 8: Use in Blade Templates
+
+```blade
+{{-- resources/views/posts/index.blade.php --}}
+
+{{-- Show posts menu if user has posts permission --}}
+@if(auth()->user()->hasPermission('posts'))
+    <li><a href="{{ route('posts.index') }}">Posts</a></li>
+@endif
+
+{{-- Show create button if user has create permission --}}
+@if(auth()->user()->hasPermission('posts.create'))
+    <a href="{{ route('posts.create') }}" class="btn btn-primary">Create Post</a>
+@endif
+
+<table>
+    @foreach($posts as $post)
+        <tr>
+            <td>{{ $post->title }}</td>
+            <td>
+                {{-- Show edit button if user has edit permission --}}
+                @if(auth()->user()->hasPermission('posts.edit'))
+                    <a href="{{ route('posts.edit', $post) }}">Edit</a>
+                @endif
+                
+                {{-- Show delete button if user has delete permission --}}
+                @if(auth()->user()->hasPermission('posts.delete'))
+                    <form action="{{ route('posts.destroy', $post) }}" method="POST">
+                        @csrf
+                        @method('DELETE')
+                        <button type="submit">Delete</button>
+                    </form>
+                @endif
+            </td>
+        </tr>
+    @endforeach
+</table>
+```
+
+### Step 9: Testing the Flow
+
+```php
+// Example: Testing permissions
+$user = User::find(2); // Editor user
+
+// These will return true
+$user->hasPermission('posts.view');     // true
+$user->hasPermission('posts.create');   // true
+$user->hasPermission('posts.edit');     // true
+$user->hasPermission('posts');          // true (parent module)
+
+// This will return false
+$user->hasPermission('posts.delete');   // false
+
+// Check role
+$user->hasRole('editor');               // true
+$user->hasAnyRole(['admin', 'editor']); // true
+
+// Check multiple permissions
+$user->hasAnyPermission(['posts.edit', 'posts.delete']); // true (has edit)
+$user->hasAllPermissions(['posts.edit', 'posts.delete']); // false (missing delete)
+```
+
+### Step 10: Dynamic Permission Management (Optional)
+
+You can also manage permissions dynamically through your admin panel:
+
+```php
+// In your admin controller
+public function updateRolePermissions(Request $request, Role $role)
+{
+    $permissionIds = $request->input('permissions', []);
+    
+    // Validate permission IDs exist
+    $validIds = Permission::whereIn('id', $permissionIds)->pluck('id')->toArray();
+    
+    // Sync permissions
+    $role->syncPermissions($validIds);
+    
+    // Clear cache
+    $role->clearPermissionCache();
+    
+    return redirect()->back()->with('success', 'Permissions updated successfully');
+}
+```
+
+This complete flow demonstrates:
+- ✅ Setting up the package
+- ✅ Creating roles and permissions
+- ✅ Building hierarchical permission structure
+- ✅ Assigning permissions to roles
+- ✅ Assigning roles to users
+- ✅ Using permissions in controllers
+- ✅ Using permissions in Blade templates
+- ✅ Testing and verification
+
 ## 💡 Usage Examples
 
 ### Creating Roles
@@ -434,6 +751,50 @@ The MIT License (MIT). Please see [License File](LICENSE) for more information.
 **PKC**
 
 - Email: laradev.sumon@gmail.com
+
+## 📊 Hierarchical Permission Structure Example
+
+Here's an example of a real-world hierarchical permission structure:
+
+```
+FMDF
+├── Stock Management
+│   ├── Lot Entry
+│   │   ├── Add
+│   │   ├── Edit
+│   │   ├── Delete
+│   │   └── View
+├── Order Management
+    ├── Add
+    ├── Edit
+    ├── Delete
+    └── View
+
+```
+
+**Flow Example:**
+```
+FMDF -> Stock Management -> Tree Stock -> Add
+
+FMDF -> Order Management -> Add
+```
+
+This means:
+- **FMDF** is the root module
+- **Stock Management** is a child module of FMDF
+- **Tree Stock** is a child module of Stock Management
+- **Add** is an action permission under Tree Stock
+
+When a user has the "Tree Stock -> Add" permission, they automatically get access to:
+- Tree Stock (parent module)
+- Stock Management (grandparent module)
+- FMDF (root module)
+
+This hierarchical structure allows for:
+- ✅ Flexible permission management
+- ✅ Easy sidebar menu visibility control
+- ✅ Granular access control at each level
+- ✅ Automatic parent permission inheritance
 
 ## 🔗 Links
 
