@@ -45,14 +45,31 @@ trait HasPermissions
     }
 
     /**
-     * Sync permissions (Strictly Granular).
-     * Does NOT automatically include children.
+     * Sync permissions to the role.
+     * 
+     * @param array $permissionIds Array of permission IDs
+     * @param bool $recursive If true, will automatically include all children of the given permissions
+     */
+    public function syncPermissions(array $permissionIds, bool $recursive = false): void
+    {
+        if ($recursive) {
+            $allIds = $permissionIds;
+            $permissions = Permission::whereIn('id', $permissionIds)->get();
+            foreach ($permissions as $permission) {
+                $allIds = array_merge($allIds, $permission->getAllDescendantIds());
+            }
+            $permissionIds = array_unique($allIds);
+        }
+
+        $this->permissions()->sync($permissionIds);
+    }
+
+    /**
+     * Alias for syncPermissions (for backward compatibility).
      */
     public function syncPermissionsWithChildren(array $permissionIds): void
     {
-        // STRICTLY GRANULAR: Only sync specifically selected IDs
-        // We do not want to auto-select children anymore.
-        $this->permissions()->sync($permissionIds);
+        $this->syncPermissions($permissionIds);
     }
 
     /**
